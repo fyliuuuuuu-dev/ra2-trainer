@@ -322,6 +322,25 @@ class ProfileTests(unittest.TestCase):
         w.reapply_all.assert_called_once_with(sidebar_refresh=True)
         self.assertFalse(w.jobs.busy)
 
+    def test_attached_profile_turns_off_power_without_busy_bailout(self):
+        # Closing "infinite_power" must not submit its refresh job inside the
+        # synchronous off-loop: later switches would then bail out as busy and
+        # stay enabled (reapply_all only ever re-opens switches).
+        w, app_module = self.window()
+        w.proc = Mock()
+        w.can_write = lambda: True
+        for attr in ("build_unlock", "techno_ai", "water_walk", "economy", "weapons",
+                     "power", "psychic", "tank_repair", "chrono_landing"):
+            setattr(w, attr, Mock(enabled=set()))
+        w.power.pending_refresh = "已开启"
+        w.reapply_all = Mock()
+        for fid in ("chrono_quick_land", "infinite_power", "psy_scan", "tank_auto_repair"):
+            w.enabled[fid] = True
+        w.apply_profile("全部关闭", app_module.BUILTIN_PROFILES["全部关闭"])
+        for fid in ("chrono_quick_land", "infinite_power", "psy_scan", "tank_auto_repair"):
+            self.assertFalse(w.enabled[fid], fid)
+        self.assertFalse(w.jobs.busy)
+
     def test_saved_multipliers_are_validated(self):
         w, _ = self.window()
         self.assertEqual(w._valid_hook_values({"rof_mult": 50, "range_mult": 2, "x": 3,

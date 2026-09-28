@@ -145,6 +145,16 @@ class PatchTests(unittest.TestCase):
         self.manager.disable("build_anywhere")
         self.assertEqual(before, self.p.data)
 
+    def test_disable_reports_on_bytes_it_never_adopted(self):
+        # enable() skipped the already-patched bytes without adopting them;
+        # switching off must say so instead of silently leaving them in effect.
+        va, _off, on = PATCHES["reveal_map"]["sites"][0]
+        self.p.patch(va, bytes.fromhex(on))
+        self.manager.enable("reveal_map")
+        with self.assertRaises(RuntimeError):
+            self.manager.disable("reveal_map")
+        self.assertEqual(self.p.read(va, 2), bytes.fromhex(on))
+
 
 class ObjectTests(unittest.TestCase):
     def test_destroyed_or_transferred_object_not_returned_from_cache(self):
