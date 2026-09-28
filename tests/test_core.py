@@ -9,6 +9,20 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
+GAME_EXE = ROOT.parent / "游戏本体" / "game.exe"
+
+
+def game_exe():
+    """Local game.exe for byte-level tests; skips when the game is absent.
+
+    These checks pin hook sites against the real 1.006 binary, which only
+    exists on a machine with the game installed. Every other (emulated)
+    test must keep running without it.
+    """
+    if not GAME_EXE.exists():
+        raise unittest.SkipTest(f"需要游戏本体：{GAME_EXE}")
+    return PE(str(GAME_EXE))
+
 from trainer.mem import Process, build_call_stub
 from trainer.patches import PatchManager
 from trainer.addresses import PATCHES
@@ -159,7 +173,7 @@ class ObjectTests(unittest.TestCase):
 
     def test_local_executable_appends_technos_to_array(self):
         # TechnoClass ctor: Items[Count++] = this, on the vector read by units.
-        pe = PE(str(ROOT.parent / "游戏本体" / "game.exe"))
+        pe = game_exe()
         code = pe.read(0x6C121C, 0x18)
         count = struct.pack("<I", units.TECHNO_COUNT).hex()
         items = struct.pack("<I", units.TECHNO_ARRAY).hex()
@@ -223,7 +237,7 @@ class RemoteCallTests(unittest.TestCase):
 
 class HookTests(unittest.TestCase):
     def test_local_executable_matches_hook_signatures(self):
-        p = PE(str(ROOT.parent / "游戏本体" / "game.exe"))
+        p = game_exe()
         self.assertEqual(p.read(HOOK, len(ORIGINAL)), ORIGINAL)
         self.assertEqual(p.read(power.HOOK, len(power.ORIGINAL)), power.ORIGINAL)
 
