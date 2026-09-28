@@ -216,7 +216,13 @@ class WaterWalkController:
             name: (address, bytes.fromhex(raw), SITE_OFFSET + i * SITE_STRIDE)
             for i, (name, (address, raw, _kind)) in enumerate(SITES.items())},
             block_bytes, size=BLOCK_SIZE, release=False)
-        self._adopt()
+        # A resident block this version cannot adopt only disables this
+        # feature for the rest of the game session; it must not fail attach.
+        self.adopt_error = None
+        try:
+            self._adopt()
+        except Exception as exc:
+            self.adopt_error = f"水面行走本局不可用（重启游戏后恢复）：{exc}"
 
     @property
     def base(self):
@@ -269,6 +275,9 @@ class WaterWalkController:
         self.hooks.prepare()
 
     def enable(self):
+        if self.adopt_error:
+            raise RuntimeError(self.adopt_error)
+
         def switch_on():
             # Called on every periodic reapply; rewrite only when the mode changed.
             if self.proc.read(self.base + MODE_OFFSET, 1) == bytes([MODE_ON]):

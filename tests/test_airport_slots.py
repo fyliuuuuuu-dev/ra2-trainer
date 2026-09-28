@@ -101,6 +101,24 @@ class AirportSlotsTests(unittest.TestCase):
         feat = next(f for f in FEATURES if f["id"] == "airport_slots")
         self.assertEqual((feat["kind"], feat["status"]), ("value", "ok"))
 
+    def test_unadoptable_block_degrades_instead_of_failing_attach(self):
+        c = ap.AirportSlotsController(self.p, self.ex)
+        c.set_factor(2)
+        tampered = c.base + ap.SITE_OFFSET
+        self.p.patch(tampered, b"\xcc")
+        degraded = ap.AirportSlotsController(self.p, self.ex)  # must not raise
+        self.assertIn("版本不匹配", degraded.adopt_error)
+        self.assertIsNone(degraded.base)
+        self.assertEqual(degraded.factor, 1)
+        with self.assertRaisesRegex(RuntimeError, "版本不匹配"):
+            degraded.set_factor(2)
+        with self.assertRaisesRegex(RuntimeError, "版本不匹配"):
+            degraded.set_factor(1)
+        degraded.close()  # nothing owned: no write
+        self.assertEqual(self.p.read(tampered, 1), b"\xcc")
+        self.assertEqual(self.p.read_u32(c.base + ap.FACTOR_OFFSET), 2)
+        self.assertEqual(self.ex.calls, [c.base + ap.RECONCILE_OFFSET])
+
     def test_pending_executor_does_not_overwrite_code(self):
         c = ap.AirportSlotsController(self.p, self.ex)
         c.set_factor(2)

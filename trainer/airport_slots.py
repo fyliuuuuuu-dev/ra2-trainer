@@ -397,7 +397,13 @@ class AirportSlotsController:
             for i, (name, (address, raw, _kind)) in enumerate(SITES.items())},
             block_bytes, size=BLOCK_SIZE, release=False)
         self.factor = 1
-        self._adopt()
+        # A resident block this version cannot adopt only disables this
+        # feature for the rest of the game session; it must not fail attach.
+        self.adopt_error = None
+        try:
+            self._adopt()
+        except Exception as exc:
+            self.adopt_error = f"机场机位本局不可用（重启游戏后恢复）：{exc}"
 
     @property
     def base(self):
@@ -435,6 +441,8 @@ class AirportSlotsController:
     def set_factor(self, factor):
         if type(factor) is not int or not 1 <= factor <= 16:
             raise ValueError("机场机位倍率须为1～16的整数")
+        if self.adopt_error:
+            raise RuntimeError(self.adopt_error)
         if factor == 1 and self.base is None:
             return 1
         self._install()

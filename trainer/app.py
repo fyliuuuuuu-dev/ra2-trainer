@@ -595,6 +595,10 @@ class MainWindow(QMainWindow):
                 try:
                     self._attach()
                     self.log(f"已附加 {name} (pid={self.pid})")
+                    for attr in ("water_walk", "airport_slots"):
+                        error = getattr(getattr(self, attr), "adopt_error", None)
+                        if isinstance(error, str):
+                            self.log(error)
                     self.check_signatures()
                     self._adopt_saved_patches()
                     self.reapply_all()
@@ -698,7 +702,10 @@ class MainWindow(QMainWindow):
         if power and power.pending_refresh:
             self.jobs.submit(power.flush_refresh, lambda _r, error: error and self.log(str(error)))
 
-    def set_patch(self, fid, on, refresh_sidebar=True):
+    def set_patch(self, fid, on, background_refresh=True):
+        """background_refresh=False leaves the sidebar/power refresh to the next
+        reapply_all instead of submitting a job (a busy job would make every
+        later switch of the same batch bail out)."""
         if jobs_busy(self):
             self.rows[fid].set_toggle(self.enabled.get(fid, False))
             return
@@ -713,9 +720,9 @@ class MainWindow(QMainWindow):
                 apply(controller, fid, on)
                 self.enabled[fid] = on
                 self.log(f"[{'开' if on else '关'}] {self.rows[fid].feat['name']}{note}")
-                if attr == "build_unlock" and refresh_sidebar:
+                if attr == "build_unlock" and background_refresh:
                     self._refresh_sidebar_later()
-                elif attr == "power":
+                elif attr == "power" and background_refresh:
                     self._flush_power_later()
             except Exception as exc:
                 self._switch_failed(fid, controller, self.enabled.get(fid, False))
@@ -1527,9 +1534,10 @@ class MainWindow(QMainWindow):
         for fid in sorted(switches):
             if self.enabled.get(fid) and fid not in wanted:
                 if attached:
-                    # No per-switch background job here: it would make every
-                    # later switch in this loop bail out as "busy".
-                    self.set_patch(fid, False, refresh_sidebar=False)
+                    # No per-switch background job here (sidebar or power
+                    # refresh): it would make every later switch in this loop
+                    # bail out as "busy". reapply_all below flushes both.
+                    self.set_patch(fid, False, background_refresh=False)
                     sidebar |= HOOK_SWITCHES.get(fid, ("",))[0] == "build_unlock"
                 else:
                     self.enabled[fid] = False

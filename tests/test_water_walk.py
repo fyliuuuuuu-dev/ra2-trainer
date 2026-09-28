@@ -125,9 +125,19 @@ class WaterWalkTests(unittest.TestCase):
         c.enable()
         prior = self.p.read(c.base + 0x200, 1)
         self.p.patch(c.base + 0x200, b"\xcc")
+        # A block this version cannot adopt must not fail attach: the feature
+        # is reported unavailable and stays inert until the game restarts.
+        degraded = ww.WaterWalkController(self.p)
+        self.assertIn("版本不匹配", degraded.adopt_error)
+        self.assertIsNone(degraded.base)
+        self.assertFalse(degraded.enabled)
         with self.assertRaisesRegex(RuntimeError, "版本不匹配"):
-            ww.WaterWalkController(self.p)
+            degraded.enable()
+        degraded.disable()
+        degraded.close()
+        self.assertEqual(self.p.read(c.base + 0x200, 1), b"\xcc")
         self.p.patch(c.base + 0x200, prior)
+        self.assertIsNone(ww.WaterWalkController(self.p).adopt_error)
         first_addr, raw, _kind = next(iter(ww.SITES.values()))
         self.p.patch(first_addr, b"\xcc")
         with self.assertRaisesRegex(RuntimeError, "入口已被外部修改"):

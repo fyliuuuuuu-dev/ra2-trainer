@@ -312,13 +312,17 @@ class ProfileTests(unittest.TestCase):
         w, app_module = self.window()
         w.proc = Mock()
         w.can_write = lambda: True
-        for attr in ("build_unlock", "techno_ai", "water_walk", "economy", "weapons"):
+        for attr in ("build_unlock", "techno_ai", "water_walk", "economy", "weapons", "power"):
             setattr(w, attr, Mock(enabled=set()))
         w.reapply_all = Mock()
-        for fid in ("tech_all", "u_vet3", "water_walk"):
+        # infinite_power sorts first: its disable leaves a pending refresh that
+        # must not become a job, or every later switch would bail out as busy.
+        switches = ("infinite_power", "tech_all", "u_vet3", "water_walk")
+        for fid in switches:
             w.enabled[fid] = True
         w.apply_profile("全部关闭", app_module.BUILTIN_PROFILES["全部关闭"])
-        self.assertFalse(any(w.enabled[fid] for fid in ("tech_all", "u_vet3", "water_walk")))
+        self.assertFalse(any(w.enabled[fid] for fid in switches))
+        w.power.disable.assert_called_once()
         w.techno_ai.set.assert_called_with("u_vet3", False)
         w.water_walk.disable.assert_called_once()
         w.reapply_all.assert_called_once_with(sidebar_refresh=True)
